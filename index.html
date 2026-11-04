@@ -142,7 +142,7 @@ canvas { width: 100%; height: 100%; display: block; border-radius: 50%; touch-ac
 
 <script>
 (function () {
-  var DEF = { n: 40, show: "", skip: "7,12,14,20", prob: 30, name: "方老師旭" };
+  var DEF = { n: 40, show: "", skip: "7,12,14,20", prob: 50, name: "方老師旭" };
   var cfg = Object.assign({}, DEF);
   try { var saved = localStorage.getItem("wheel-cfg"); if (saved) cfg = Object.assign(cfg, JSON.parse(saved)); } catch (e) {}
   function save() { try { localStorage.setItem("wheel-cfg", JSON.stringify(cfg)); } catch (e) {} }
