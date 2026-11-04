@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>抽號輪盤</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<style>
+/* Layout: wheel on the left, result card on the right; stacked on narrow screens. Settings hide behind a small gear. */
+:root {
+  --bg: #FAF6EE;
+  --fg: #1E2A3A;
+  --muted: #5B6676;
+  --panel: #FFFFFF;
+  --line: #E3D6D9;
+  --maroon: #A63D5C;
+  --blue: #2F5D8C;
+  --on-accent: #FFFFFF;
+  --s1: #A63D5C; --s1t: #FFFFFF;
+  --s2: #F3E4E8; --s2t: #1E2A3A;
+  --s3: #2F5D8C; --s3t: #FFFFFF;
+  --s4: #E6ECF3; --s4t: #1E2A3A;
+  --hub: #1E2A3A;
+  --font-ui: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+  --font-num: "Barlow Condensed", "Arial Narrow", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14181F; --fg: #F1EDE6; --muted: #A6AFBD; --panel: #1D232C; --line: #333B47;
+    --maroon: #C25A7B; --blue: #4C7FB3; --on-accent: #FFFFFF;
+    --s1: #C25A7B; --s1t: #FFFFFF;
+    --s2: #3A2A31; --s2t: #F1EDE6;
+    --s3: #4C7FB3; --s3t: #FFFFFF;
+    --s4: #26323F; --s4t: #F1EDE6;
+    --hub: #F1EDE6;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14181F; --fg: #F1EDE6; --muted: #A6AFBD; --panel: #1D232C; --line: #333B47;
+  --maroon: #C25A7B; --blue: #4C7FB3; --on-accent: #FFFFFF;
+  --s1: #C25A7B; --s1t: #FFFFFF;
+  --s2: #3A2A31; --s2t: #F1EDE6;
+  --s3: #4C7FB3; --s3t: #FFFFFF;
+  --s4: #26323F; --s4t: #F1EDE6;
+  --hub: #F1EDE6;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-ui);
+  padding-block: 20px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.app { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; min-height: 100%; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; position: relative; }
+h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: .04em; }
+.gear { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; display: grid; place-items: center; opacity: .55; }
+.gear:hover, .gear:focus-visible { opacity: 1; }
+.gear:focus-visible, .btn:focus-visible, .card:focus-visible, input:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+.panel { position: absolute; right: 0; top: 48px; z-index: 5; width: min(340px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: grid; gap: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.18); }
+.panel label { display: grid; gap: 6px; font-size: 14px; color: var(--muted); }
+.panel input { font: inherit; font-size: 16px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; width: 100%; }
+.panel p { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.5; }
+main { flex: 1; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 32px; align-items: center; }
+.stage { display: grid; justify-items: center; }
+.wheelWrap { position: relative; width: min(100%, 68vh, 600px); aspect-ratio: 1; max-width: 100%; }
+canvas { width: 100%; height: 100%; display: block; border-radius: 50%; touch-action: manipulation; cursor: pointer; }
+.pointer { position: absolute; left: 50%; top: -6px; width: 44px; height: 52px; transform: translateX(-50%); pointer-events: none; filter: drop-shadow(0 3px 3px rgba(0,0,0,.3)); }
+.side { display: grid; gap: 22px; justify-items: stretch; min-width: 0; }
+.flip { perspective: 1100px; }
+.card { position: relative; width: 100%; height: clamp(190px, 30vh, 300px); transform-style: preserve-3d; transition: transform .75s cubic-bezier(.3,.7,.2,1); cursor: default; border-radius: 22px; }
+.card.flipped { transform: rotateY(180deg); }
+.card.wiggle { animation: wiggle .45s ease; }
+@keyframes wiggle { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+.face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; border-radius: 22px; display: grid; align-content: center; justify-items: center; gap: 6px; padding: 16px; text-align: center; }
+.front { background: var(--blue); color: var(--on-accent); }
+.back { background: var(--maroon); color: var(--on-accent); transform: rotateY(180deg); }
+.cap { font-size: 18px; letter-spacing: .3em; opacity: .85; }
+.big { font-family: var(--font-num); font-weight: 700; line-height: 1; font-size: clamp(88px, 17vh, 150px); }
+.big.name { font-family: var(--font-ui); font-size: clamp(44px, 8vw, 84px); line-height: 1.15; overflow-wrap: anywhere; }
+.big.idle { opacity: .5; }
+.actions { display: flex; gap: 12px; flex-wrap: wrap; }
+.btn { font: inherit; font-size: 20px; font-weight: 700; letter-spacing: .2em; padding: 14px 34px; border-radius: 999px; border: 2px solid var(--fg); background: var(--fg); color: var(--bg); cursor: pointer; }
+.btn:disabled { opacity: .45; cursor: default; }
+.hint { margin: 0; color: var(--muted); font-size: 15px; }
+@media (max-width: 860px) {
+  main { grid-template-columns: minmax(0, 1fr); gap: 22px; }
+  .wheelWrap { width: min(100%, 520px); }
+}
+@media (prefers-reduced-motion: reduce) { .card { transition: none; } .card.wiggle { animation: none; } }
+</style>
+
+</head><body>
+<div class="app">
+  <header>
+    <h1>抽號輪盤</h1>
+    <button class="gear" id="gear" type="button" aria-label="設定" aria-expanded="false" aria-controls="panel">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </button>
+    <div class="panel" id="panel" hidden>
+      <label for="cfgN">最大號碼
+        <input id="cfgN" type="number" min="2" max="60" step="1" inputmode="numeric">
+      </label>
+      <label for="cfgSkip">不要的號碼（用逗號分開）
+        <input id="cfgSkip" type="text" inputmode="numeric" autocomplete="off">
+      </label>
+      <label for="cfgShow">輪盤停下來顯示的號碼（留空就是隨機）
+        <input id="cfgShow" type="text" inputmode="numeric" autocomplete="off">
+      </label>
+      <label for="cfgProb">點開變成老師的機率（0–100%）
+        <input id="cfgProb" type="number" min="0" max="100" step="5" inputmode="numeric">
+      </label>
+      <label for="cfgName">翻面後顯示的文字
+        <input id="cfgName" type="text" autocomplete="off">
+      </label>
+      <p>設定只存在這台電腦的瀏覽器裡。</p>
+    </div>
+  </header>
+
+  <main>
+    <section class="stage" aria-label="輪盤">
+      <div class="wheelWrap" id="wrap">
+        <canvas id="wheel" role="img" aria-label="號碼輪盤，點一下開始轉"></canvas>
+        <svg class="pointer" viewBox="0 0 44 52" aria-hidden="true"><path d="M22 52 L2 8 Q22 -4 42 8 Z" fill="#E8B04A" stroke="#1E2A3A" stroke-width="3" stroke-linejoin="round"/></svg>
+      </div>
+    </section>
+    <section class="side" aria-label="結果">
+      <div class="flip">
+        <div class="card" id="card" role="button" tabindex="0" aria-live="polite" aria-label="抽號結果">
+          <div class="face front"><span class="cap" id="frontCap">號碼</span><span class="big idle" id="numOut">?</span></div>
+          <div class="face back"><span class="big name" id="nameOut"></span></div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn" id="spin" type="button">轉</button>
+      </div>
+      <p class="hint" id="hint">按「轉」開始抽號</p>
+    </section>
+  </main>
+</div>
+
+<script>
+(function () {
+  var DEF = { n: 40, show: "", skip: "7,12,14,20", prob: 30, name: "方老師旭" };
+  var cfg = Object.assign({}, DEF);
+  try { var saved = localStorage.getItem("wheel-cfg"); if (saved) cfg = Object.assign(cfg, JSON.parse(saved)); } catch (e) {}
+  function save() { try { localStorage.setItem("wheel-cfg", JSON.stringify(cfg)); } catch (e) {} }
+
+  var $ = function (id) { return document.getElementById(id); };
+  var canvas = $("wheel"), ctx = canvas.getContext("2d"), wrap = $("wrap");
+  var card = $("card"), numOut = $("numOut"), nameOut = $("nameOut"), frontCap = $("frontCap");
+  var spinBtn = $("spin"), hint = $("hint");
+  var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var rot = 0, spinning = false, stopped = false, flipPlanned = false, flipped = false;
+
+  function list() { var max = parseInt(cfg.n, 10); if (!(max >= 2)) max = DEF.n; max = Math.min(60, max); var skip = String(cfg.skip || "").split(/[^0-9]+/).filter(Boolean).map(Number); var out = [], i; for (i = 1; i <= max; i++) if (skip.indexOf(i) < 0) out.push(i); if (out.length < 2) { out = []; for (i = 1; i <= max; i++) out.push(i); } return out; }
+  function N() { return list().length; }
+  function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+  function draw() {
+    var dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    var size = Math.round(wrap.clientWidth * dpr);
+    if (!size) return;
+    if (canvas.width !== size) { canvas.width = size; canvas.height = size; }
+    var L = list(), n = L.length, a = Math.PI * 2 / n, c = size / 2, r = c - 6 * dpr;
+    var pairs = [[css("--s1"), css("--s1t")], [css("--s2"), css("--s2t")], [css("--s3"), css("--s3t")], [css("--s4"), css("--s4t")]];
+    ctx.clearRect(0, 0, size, size);
+    ctx.save();
+    ctx.translate(c, c);
+    ctx.rotate(rot);
+    for (var i = 0; i < n; i++) {
+      var start = -Math.PI / 2 + i * a;
+      // neighbouring segments always differ, even when n is odd
+      var p = pairs[(i % 2) * 2 + ((i === n - 1 && n % 2 === 1) ? 1 : 0)];
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, r, start, start + a);
+      ctx.closePath();
+      ctx.fillStyle = p[0];
+      ctx.fill();
+      ctx.save();
+      ctx.rotate(start + a / 2 + Math.PI / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillStyle = p[1];
+      var arc = r * 0.8 * a;
+      var fs = Math.max(10 * dpr, Math.min(r * 0.11, arc * 0.62));
+      ctx.font = "700 " + fs + "px 'Barlow Condensed', 'Arial Narrow', sans-serif";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+      ctx.fillText(String(L[i]), r * 0.93, 0);
+      ctx.restore();
+    }
+    ctx.restore();
+    // hub
+    ctx.beginPath(); ctx.arc(c, c, r * 0.1, 0, Math.PI * 2);
+    ctx.fillStyle = css("--hub"); ctx.fill();
+    ctx.lineWidth = 4 * dpr; ctx.strokeStyle = css("--bg"); ctx.stroke();
+    // rim
+    ctx.beginPath(); ctx.arc(c, c, r, 0, Math.PI * 2);
+    ctx.lineWidth = 6 * dpr; ctx.strokeStyle = css("--hub"); ctx.stroke();
+  }
+
+  function resetCard() {
+    card.classList.remove("flipped", "wiggle");
+    flipped = false; stopped = false;
+  }
+
+  function setIdle() {
+    frontCap.textContent = "號碼"; numOut.textContent = "?"; numOut.classList.add("idle");
+  }
+
+  function targetNumber() {
+    var L = list(), t = parseInt(String(cfg.show).trim(), 10), k = L.indexOf(t);
+    if (k >= 0) return k + 1;
+    return 1 + Math.floor(Math.random() * L.length);
+  }
+
+  function ease(t) { return 1 - Math.pow(1 - t, 4); }
+
+  function spin() {
+    if (spinning) return;
+    spinning = true; spinBtn.disabled = true;
+    resetCard(); setIdle();
+    hint.textContent = "轉動中…";
+    var n = N(), a = Math.PI * 2 / n, target = targetNumber();
+    var prob = Math.max(0, Math.min(100, parseFloat(cfg.prob) || 0));
+    flipPlanned = Math.random() * 100 < prob;
+    var jitter = (Math.random() - 0.5) * a * 0.6;
+    var two = Math.PI * 2;
+    var finalMod = ((-(target - 0.5) * a + jitter) % two + two) % two;
+    var curMod = ((rot % two) + two) % two;
+    var delta = finalMod - curMod; if (delta < 0) delta += two;
+    var total = delta + two * (reduced ? 1 : 6);
+    var from = rot, dur = reduced ? 900 : 5200, t0 = null;
+    function frame(ts) {
+      if (t0 === null) t0 = ts;
+      var t = Math.min(1, (ts - t0) / dur);
+      rot = from + total * ease(t);
+      draw();
+      if (t < 1) requestAnimationFrame(frame);
+      else {
+        rot = from + total; draw();
+        spinning = false; stopped = true; spinBtn.disabled = false;
+        frontCap.textContent = "抽到"; numOut.textContent = String(list()[target - 1]); numOut.classList.remove("idle");
+        nameOut.textContent = cfg.name || DEF.name;
+        hint.textContent = "按「轉」再抽一次";
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function pressCard() {
+    if (!stopped || flipped) return;
+    if (flipPlanned) { flipped = true; card.classList.add("flipped"); }
+    else {
+      card.classList.remove("wiggle"); void card.offsetWidth; card.classList.add("wiggle");
+    }
+  }
+
+  spinBtn.addEventListener("click", spin);
+  canvas.addEventListener("click", spin);
+  card.addEventListener("click", pressCard);
+  card.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pressCard(); } });
+
+  // settings
+  var gear = $("gear"), panel = $("panel");
+  var inN = $("cfgN"), inShow = $("cfgShow"), inProb = $("cfgProb"), inName = $("cfgName");
+  var inSkip = $("cfgSkip"); inSkip.value = cfg.skip; inN.value = cfg.n; inShow.value = cfg.show; inProb.value = cfg.prob; inName.value = cfg.name;
+  gear.addEventListener("click", function () {
+    var open = panel.hidden; panel.hidden = !open; gear.setAttribute("aria-expanded", String(open));
+  });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !panel.hidden) { panel.hidden = true; gear.setAttribute("aria-expanded", "false"); } });
+  inN.addEventListener("input", function () { cfg.n = inN.value; save(); if (!spinning) { setIdle(); resetCard(); draw(); } });
+  inShow.addEventListener("input", function () { cfg.show = inShow.value; save(); });
+  inSkip.addEventListener("input", function () { cfg.skip = inSkip.value; save(); if (!spinning) { setIdle(); resetCard(); draw(); } });
+  inProb.addEventListener("input", function () { cfg.prob = inProb.value; save(); });
+  inName.addEventListener("input", function () { cfg.name = inName.value; nameOut.textContent = cfg.name || DEF.name; save(); });
+  nameOut.textContent = cfg.name || DEF.name;
+
+  // redraw on resize, theme change and font load
+  window.addEventListener("resize", draw);
+  if (window.ResizeObserver) new ResizeObserver(draw).observe(wrap);
+  if (window.matchMedia) {
+    var mq = window.matchMedia("(prefers-color-scheme: dark)");
+    if (mq.addEventListener) mq.addEventListener("change", draw);
+  }
+  new MutationObserver(draw).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  draw();
+  if (document.fonts && document.fonts.load) {
+    document.fonts.load("700 20px 'Barlow Condensed'").then(draw, function () {});
+    if (document.fonts.ready) document.fonts.ready.then(draw);
+  }
+})();
+</script>
+
+</body></html>
