@@ -59,6 +59,7 @@ h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: .04em; }
 .gear:hover, .gear:focus-visible { opacity: 1; }
 .gear:focus-visible, .btn:focus-visible, .card:focus-visible, input:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
 .panel { position: absolute; right: 0; top: 48px; z-index: 5; width: min(340px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: grid; gap: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.18); }
+.panel[hidden] { display: none; }
 .panel label { display: grid; gap: 6px; font-size: 14px; color: var(--muted); }
 .panel input { font: inherit; font-size: 16px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; width: 100%; }
 .panel p { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.5; }
@@ -142,7 +143,7 @@ canvas { width: 100%; height: 100%; display: block; border-radius: 50%; touch-ac
 
 <script>
 (function () {
-  var DEF = { n: 40, show: "", skip: "7,12,14,20", prob: 50, name: "方老師旭" };
+  var DEF = { n: 45, show: "", skip: "3,7,12,14,20", prob: 50, name: "方老師旭" };
   var cfg = Object.assign({}, DEF);
   try { var saved = localStorage.getItem("wheel-cfg"); if (saved) cfg = Object.assign(cfg, JSON.parse(saved)); } catch (e) {}
   function save() { try { localStorage.setItem("wheel-cfg", JSON.stringify(cfg)); } catch (e) {} }
